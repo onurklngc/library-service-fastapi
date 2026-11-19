@@ -1,7 +1,45 @@
-# FastAPI Application with Celery & Celery-Beat
+# Library Service
 
-This project includes a FastAPI application integrated with Celery for task management and Celery-Beat for task
-scheduling. It uses Docker for containerization and supports both Docker Compose and manual builds.
+A REST API for running a small library: it manages books and patrons, handles checkouts and returns, and reports
+overdue loans. Scheduled background jobs send daily overdue reminders and write a weekly inventory report.
+
+Built with FastAPI, SQLAlchemy 2 and MySQL, with Celery workers and Celery Beat on Redis. Everything runs in Docker,
+and the test suite runs on every push via GitHub Actions.
+
+## Architecture
+
+```
+            ┌──────────────┐        ┌─────────┐
+client ───► │ FastAPI app  │ ─────► │  MySQL  │ ◄────────────┐
+            └──────────────┘        └─────────┘              │
+                                                             │
+            ┌──────────────┐        ┌─────────┐       ┌──────┴───────┐
+            │ Celery Beat  │ ─────► │  Redis  │ ────► │ Celery worker│
+            │ (scheduler)  │        │ (broker)│       │ (jobs)       │
+            └──────────────┘        └─────────┘       └──────────────┘
+```
+
+- **API** (`main.py`): request validation with Pydantic (ISBN-10/13 and email checks), persistence via SQLAlchemy.
+- **Scheduler** (`celery_app.py`): cron-style schedule; hours are configurable through environment variables.
+- **Jobs** (`src/tasks.py`): `send_overdue_reminders` (daily) and `generate_weekly_reports` (weekly).
+
+## API
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/books/` | Add a book |
+| `GET` | `/books` | List books |
+| `GET` `PUT` `DELETE` | `/books/{book_id}` | Read, update or delete a book |
+| `POST` | `/patrons/` | Register a patron |
+| `GET` | `/patrons` | List patrons |
+| `GET` `PUT` `DELETE` | `/patrons/{patron_id}` | Read, update or delete a patron |
+| `POST` | `/checkout/{book_id}/patron/{patron_id}` | Check out a book (`checkout_period` in days, default 14) |
+| `POST` | `/return/{book_id}` | Return a book |
+| `GET` | `/books/checkedout/` | List checked-out books |
+| `GET` | `/books/patron/{patron_id}` | List books held by a patron |
+| `GET` | `/books/overdue/` | List overdue books |
+
+Interactive documentation is served at `/docs` (Swagger UI).
 
 ## Environment Setup
 
@@ -72,7 +110,7 @@ Alternatively, you can start each container separately.
 ## Accessing the API
 
 Once the FastAPI server is running, you can interact with the API using Swagger UI.
-Visit [http://0.0.0.0:8081/docs](http://0.0.0.0:8081/docs) in your browser.
+Visit [http://localhost:8081/docs](http://localhost:8081/docs) in your browser.
 
 ## Checking Celery Jobs
 
@@ -110,7 +148,7 @@ If you want to see the job result logs sooner, you can adjust the cron job sched
 ## Testing
 
 1. **Run Unit Tests:**
-    - To execute the tests for API endpoints, use:
+    - The tests use a local SQLite database, so no MySQL or Redis is needed. To run them:
       ```sh
       pytest
       ```
