@@ -111,6 +111,51 @@ def test_delete_patron(client):
     assert response.status_code == 404
 
 
+
+def _create_book_and_patron(client):
+    book = client.post("/books/", json={"title": "1984", "author": "George Orwell", "isbn": "0-8436-1072-7",
+                                        "published_year": 1949}).json()
+    patron = client.post("/patrons/", json={"name": "John Doe", "email": "johndoe@gmail.com"}).json()
+    return book["id"], patron["id"]
+
+
+def test_checkout_and_return_book(client):
+    book_id, patron_id = _create_book_and_patron(client)
+    response = client.post(f"/checkout/{book_id}/patron/{patron_id}")
+    assert response.status_code == 200
+    assert response.json()["is_checked_out"] is True
+    assert response.json()["patron_id"] == patron_id
+
+    response = client.post(f"/checkout/{book_id}/patron/{patron_id}")
+    assert response.status_code == 400
+
+    response = client.post(f"/return/{book_id}")
+    assert response.status_code == 200
+    assert response.json()["is_checked_out"] is False
+    assert response.json()["patron_id"] is None
+
+
+def test_list_checked_out_books(client):
+    book_id, patron_id = _create_book_and_patron(client)
+    assert client.get("/books/checkedout/").json() == []
+
+    client.post(f"/checkout/{book_id}/patron/{patron_id}")
+    response = client.get("/books/checkedout/")
+    assert response.status_code == 200
+    assert [book["id"] for book in response.json()] == [book_id]
+
+
+def test_list_overdue_books(client):
+    book_id, patron_id = _create_book_and_patron(client)
+    client.post(f"/checkout/{book_id}/patron/{patron_id}")
+    assert client.get("/books/overdue/").json() == []
+
+    client.put(f"/books/{book_id}", json={"due_date": "2000-01-01T00:00:00"})
+    response = client.get("/books/overdue/")
+    assert response.status_code == 200
+    assert [book["id"] for book in response.json()] == [book_id]
+
+
 if __name__ == '__main__':
     import pytest
 

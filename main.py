@@ -163,7 +163,7 @@ def return_book(book_id: int, db: Session = Depends(database_config.get_db)):
 
 @app.get("/books/checkedout/", response_model=list[BookDto])
 def list_checked_out_books(db: Session = Depends(database_config.get_db)):
-    books = db.query(Book).filter(Book.is_checked_out is True).all()
+    books = db.query(Book).filter(Book.is_checked_out.is_(True)).all()
     return books
 
 
@@ -176,7 +176,7 @@ def list_books_by_patron(patron_id: int, db: Session = Depends(database_config.g
 @app.get("/books/overdue/", response_model=list[BookDto])
 def list_overdue_books(db: Session = Depends(database_config.get_db)):
     now = datetime.utcnow()
-    books = db.query(Book).filter(Book.due_date < now, Book.is_checked_out is True).all()
+    books = db.query(Book).filter(Book.due_date < now, Book.is_checked_out.is_(True)).all()
     return books
 
 
